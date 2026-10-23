@@ -2,13 +2,10 @@ import { useState } from "react";
 import { useAuth } from "../auth/auth-context";
 import { CopyButton } from "../components/CopyButton";
 import {
-  CloudIcon,
   DeviceIcon,
   ExternalIcon,
-  FolderIcon,
   LogoMark,
   ShieldIcon,
-  TrashIcon,
 } from "../components/Icons";
 import { Notice } from "../components/Notice";
 
@@ -160,64 +157,26 @@ export function ConnectScreen() {
         </div>
         <a
           className="topbar-link"
-          href="https://help.ibroadcast.com/en/developer/authentication"
+          href="https://www.ibroadcast.com/"
           target="_blank"
           rel="noreferrer"
         >
-          iBroadcast developer docs
+          iBroadcast
           <ExternalIcon size={15} />
         </a>
       </header>
 
       <main className="connect-main">
         <section className="connect-hero" aria-labelledby="connect-title">
-          <p className="eyebrow">Storage cleanup, without the guesswork</p>
+          <p className="eyebrow">Storage cleanup</p>
           <h1 id="connect-title">
-            Take control of your
-            <span className="gradient-text"> iBroadcast storage.</span>
+            Reclaim iBroadcast
+            <span className="gradient-text"> storage.</span>
           </h1>
           <p className="hero-copy">
-            See what is using your quota, sort upload folders by size, move
-            unwanted tracks to trash, and permanently empty trash to reclaim
-            storage.
+            See storage used, sort upload folders by size, move tracks to trash,
+            and permanently empty trash to free space.
           </p>
-
-          <ul className="feature-list">
-            <li>
-              <span className="feature-icon">
-                <CloudIcon size={19} />
-              </span>
-              <div>
-                <strong>Your real storage meter</strong>
-                <span>
-                  Used, limit, remaining, and percent straight from iBroadcast.
-                </span>
-              </div>
-            </li>
-            <li>
-              <span className="feature-icon">
-                <FolderIcon size={19} />
-              </span>
-              <div>
-                <strong>Folders ranked by size</strong>
-                <span>
-                  Find the upload folders quietly consuming the most space.
-                </span>
-              </div>
-            </li>
-            <li>
-              <span className="feature-icon">
-                <TrashIcon size={19} />
-              </span>
-              <div>
-                <strong>Two-stage cleanup</strong>
-                <span>
-                  Move to trash first. Empty trash only when you are ready to
-                  reclaim space.
-                </span>
-              </div>
-            </li>
-          </ul>
         </section>
 
         <div className="connect-column">

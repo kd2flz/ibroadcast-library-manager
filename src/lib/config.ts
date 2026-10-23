@@ -30,7 +30,8 @@ export function hasEnvClientId(): boolean {
 }
 
 export function getRedirectUri(): string {
-  return new URL("/callback", window.location.origin).toString();
+  const url = new URL("/callback", window.location.origin);
+  return url.toString().replace(/\/$/, "");
 }
 
 export function isCallbackRoute(): boolean {
