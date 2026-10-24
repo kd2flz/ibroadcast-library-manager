@@ -383,6 +383,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadSession();
   }, [loadSession]);
 
+  const refreshStatus = useCallback(async () => {
+    if (!readTokens()) {
+      return;
+    }
+    try {
+      const status = await withAccessToken(clientId, fetchStatus);
+      setUsage((current) => {
+        const next = parseUsage(status);
+        if (next) {
+          return next;
+        }
+        if (library) {
+          return current ?? estimatedUsage(library);
+        }
+        return current;
+      });
+    } catch {
+      // Best effort only.
+    }
+  }, [clientId, library]);
+
   const updateClientId = useCallback((nextClientId: string) => {
     const trimmed = nextClientId.trim();
     saveClientId(trimmed);
@@ -416,6 +437,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     completeCallback,
     logout,
     refresh,
+    refreshStatus,
     updateClientId,
     clearError,
   };

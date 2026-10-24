@@ -20,6 +20,7 @@ export interface AuthContextValue {
   completeCallback: (code: string, state: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  refreshStatus: () => Promise<void>;
   updateClientId: (clientId: string) => void;
   clearError: () => void;
 }

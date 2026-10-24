@@ -40,6 +40,7 @@ export function DashboardScreen() {
     busyMessage,
     error,
     refresh,
+    refreshStatus,
     logout,
     clearError,
   } = useAuth();
@@ -94,9 +95,12 @@ export function DashboardScreen() {
         }${unknown > 0 ? ` (plus ${unknown.toLocaleString()} tracks with unknown size)` : ""}. iBroadcast storage can take a few seconds to update.`,
       });
       await refresh();
-      window.setTimeout(() => void refresh(), 1500);
-      window.setTimeout(() => void refresh(), 4000);
-      window.setTimeout(() => void refresh(), 8000);
+      void refreshStatus();
+      window.setTimeout(() => void refreshStatus(), 1000);
+      window.setTimeout(() => void refreshStatus(), 2000);
+      window.setTimeout(() => void refreshStatus(), 4000);
+      window.setTimeout(() => void refreshStatus(), 8000);
+      window.setTimeout(() => void refreshStatus(), 15000);
     } catch (caught) {
       setNotice({ tone: "error", text: messageForError(caught) });
     } finally {
