@@ -479,11 +479,13 @@ select:focus-visible {
 }
 
 .gradient-text {
-  display: block;
+  display: inline;
   color: transparent;
   background: linear-gradient(100deg, #5eead4, #2dd4bf 46%, #38bdf8);
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
 }
 
 .hero-copy {
@@ -1836,5 +1838,33 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+.connect-main-compact {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  align-items: center;
+  gap: clamp(1.8rem, 4vw, 3.6rem);
+  padding: clamp(1.6rem, 6vh, 3rem) 0;
+}
+
+.connect-hero-compact {
+  max-width: 560px;
+}
+
+.connect-card-compact {
+  justify-self: end;
+  width: 100%;
+  max-width: 420px;
+}
+
+@media (max-width: 900px) {
+  .connect-main-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .connect-card-compact {
+    justify-self: start;
+    max-width: 560px;
   }
 }
