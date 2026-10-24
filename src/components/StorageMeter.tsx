@@ -1,5 +1,5 @@
 import { formatBytes, formatDate, formatPercent, pluralize } from "../lib/format";
-import type { Usage } from "../lib/types";
+import type { LibraryData, Usage } from "../lib/types";
 import { AlertIcon, CheckIcon, CloudIcon } from "./Icons";
 
 function MeterStatus({ usage }: { usage: Usage }) {
@@ -44,7 +44,13 @@ function MeterStatus({ usage }: { usage: Usage }) {
   );
 }
 
-export function StorageMeter({ usage }: { usage: Usage }) {
+export function StorageMeter({
+  usage,
+  library,
+}: {
+  usage: Usage;
+  library?: LibraryData;
+}) {
   const limitText = usage.unlimited
     ? "Unlimited"
     : usage.storageLimit !== null
@@ -121,6 +127,19 @@ export function StorageMeter({ usage }: { usage: Usage }) {
       </dl>
 
       <MeterStatus usage={usage} />
+
+      {library ? (
+        <p className="meter-note">
+          Computed from your library files: {formatBytes(library.totalStoredSize)}{" "}
+          ({formatBytes(library.totalActiveSize)} active +{" "}
+          {formatBytes(library.trash.size)} in trash).
+          {!usage.estimated &&
+          Math.abs(usage.storageUsed - library.totalStoredSize) >
+            Math.max(50_000_000, usage.storageUsed * 0.02)
+            ? " iBroadcast reports a different total, which may lag behind recent deletions or include files not listed here."
+            : ""}
+        </p>
+      ) : null}
 
       {usage.hiddenFiles > 0 ? (
         <p className="meter-note">

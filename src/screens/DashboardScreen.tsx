@@ -240,7 +240,7 @@ export function DashboardScreen() {
         ) : null}
 
         <section className="meter-grid" aria-label="Storage overview">
-          <StorageMeter usage={effectiveUsage} />
+          <StorageMeter usage={effectiveUsage} library={library} />
           <TrashCard
             trash={library.trash}
             onEmpty={() => setEmptyConfirmOpen(true)}
