@@ -182,3 +182,11 @@ export function CloseIcon(props: IconProps) {
     </IconBase>
   );
 }
+
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="m9 6 6 6-6 6" />
+    </IconBase>
+  );
+}

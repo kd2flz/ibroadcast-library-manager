@@ -5,15 +5,42 @@ import {
   formatTrackCount,
   pluralize,
 } from "../lib/format";
+import {
+  buildFolderTree,
+  collectFolderTreeIds,
+  filterFolderTree,
+  flattenFolderTree,
+  nodeFolderPaths,
+  sortFolderTree,
+  type FolderSortMode,
+} from "../lib/folder-tree";
 import type { FolderSummary } from "../lib/types";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
+  ChevronRightIcon,
   FolderIcon,
   SearchIcon,
   TrashIcon,
 } from "./Icons";
 
-type SortMode = "size-desc" | "size-asc" | "name" | "tracks";
+type ViewMode = "flat" | "tree";
+const VIEW_STORAGE_KEY = "ibm.folderView";
+
+function readViewMode(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_STORAGE_KEY) === "tree" ? "tree" : "flat";
+  } catch {
+    return "flat";
+  }
+}
+
+function persistViewMode(mode: ViewMode): void {
+  try {
+    localStorage.setItem(VIEW_STORAGE_KEY, mode);
+  } catch {
+    // View preference is optional.
+  }
+}
 
 function SelectionCheckbox({
   checked,
@@ -47,7 +74,10 @@ function SelectionCheckbox({
   );
 }
 
-function sortFolders(folders: FolderSummary[], mode: SortMode): FolderSummary[] {
+function sortFolders(
+  folders: FolderSummary[],
+  mode: FolderSortMode,
+): FolderSummary[] {
   const sorted = [...folders];
   switch (mode) {
     case "size-asc":
@@ -70,6 +100,103 @@ function sortFolders(folders: FolderSummary[], mode: SortMode): FolderSummary[] 
   return sorted;
 }
 
+function FolderRow({
+  label,
+  path,
+  tree,
+  depth,
+  trackCount,
+  size,
+  unknownSizeCount,
+  trashedCount,
+  selected,
+  indeterminate,
+  expandable,
+  expanded,
+  onSelect,
+  onToggleExpanded,
+}: {
+  label: string;
+  path: string;
+  tree: boolean;
+  depth: number;
+  trackCount: number;
+  size: number;
+  unknownSizeCount: number;
+  trashedCount: number;
+  selected: boolean;
+  indeterminate: boolean;
+  expandable: boolean;
+  expanded: boolean;
+  onSelect: () => void;
+  onToggleExpanded: () => void;
+}) {
+  return (
+    <tr
+      className={`${selected ? "is-selected" : ""} ${
+        indeterminate ? "is-partial" : ""
+      }`}
+      onClick={onSelect}
+    >
+      <td className="col-check">
+        <SelectionCheckbox
+          checked={selected}
+          indeterminate={indeterminate}
+          onChange={onSelect}
+          label={`Select ${path}`}
+        />
+      </td>
+      <td>
+        <div
+          className={`folder-name ${tree ? "tree-label" : ""}`}
+          style={depth > 0 ? { paddingLeft: `${depth * 18}px` } : undefined}
+        >
+          {tree ? (
+            expandable ? (
+              <button
+                type="button"
+                className={`tree-chevron ${expanded ? "is-expanded" : ""}`}
+                aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
+                aria-expanded={expanded}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleExpanded();
+                }}
+              >
+                <ChevronRightIcon size={15} />
+              </button>
+            ) : (
+              <span className="tree-chevron-spacer" aria-hidden="true" />
+            )
+          ) : null}
+          <span className="folder-icon">
+            <FolderIcon size={17} />
+          </span>
+          <span title={path}>{label}</span>
+        </div>
+      </td>
+      <td className="col-number">{trackCount.toLocaleString()}</td>
+      <td className="col-number">
+        <span className="size-value">{formatBytes(size)}</span>
+        {unknownSizeCount > 0 ? (
+          <span className="size-unknown">
+            +{unknownSizeCount.toLocaleString()} unknown
+          </span>
+        ) : null}
+      </td>
+      <td className="col-number col-trashed">
+        {trashedCount > 0 ? (
+          <span className="trash-count-badge">
+            {trashedCount.toLocaleString()}
+          </span>
+        ) : (
+          <span className="muted">—</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export function FolderBrowser({
   folders,
   busy,
@@ -80,11 +207,15 @@ export function FolderBrowser({
   onTrash: (folders: FolderSummary[]) => Promise<boolean>;
 }) {
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortMode>("size-desc");
+  const [sort, setSort] = useState<FolderSortMode>("size-desc");
+  const [view, setView] = useState<ViewMode>(readViewMode);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const visibleFolders = useMemo(() => {
+  const searchActive = search.trim().length > 0;
+
+  const visibleFlatFolders = useMemo(() => {
     const needle = search.trim().toLowerCase();
     const filtered = needle
       ? folders.filter((folder) => folder.path.toLowerCase().includes(needle))
@@ -92,9 +223,46 @@ export function FolderBrowser({
     return sortFolders(filtered, sort);
   }, [folders, search, sort]);
 
+  const folderTree = useMemo(() => buildFolderTree(folders), [folders]);
+  const sortedTree = useMemo(
+    () => sortFolderTree(folderTree, sort),
+    [folderTree, sort],
+  );
+  const filteredTree = useMemo(
+    () => filterFolderTree(sortedTree, search),
+    [sortedTree, search],
+  );
+  const visibleTree = useMemo(
+    () => flattenFolderTree(filteredTree, expandedIds, searchActive),
+    [filteredTree, expandedIds, searchActive],
+  );
+
   const selectedFolders = useMemo(
     () => folders.filter((folder) => selectedPaths.has(folder.path)),
     [folders, selectedPaths],
+  );
+
+  const visibleSelectablePaths = useMemo(() => {
+    const paths = new Set<string>();
+    if (view === "flat") {
+      for (const folder of visibleFlatFolders) {
+        paths.add(folder.path);
+      }
+    } else {
+      for (const { node } of visibleTree) {
+        for (const path of nodeFolderPaths(node)) {
+          paths.add(path);
+        }
+      }
+    }
+    return paths;
+  }, [view, visibleFlatFolders, visibleTree]);
+
+  const allVisibleSelected =
+    visibleSelectablePaths.size > 0 &&
+    [...visibleSelectablePaths].every((path) => selectedPaths.has(path));
+  const someVisibleSelected = [...visibleSelectablePaths].some((path) =>
+    selectedPaths.has(path),
   );
 
   const selectedTrackCount = selectedFolders.reduce(
@@ -109,12 +277,11 @@ export function FolderBrowser({
     (total, folder) => total + folder.unknownSizeCount,
     0,
   );
-  const allVisibleSelected =
-    visibleFolders.length > 0 &&
-    visibleFolders.every((folder) => selectedPaths.has(folder.path));
-  const someVisibleSelected = visibleFolders.some((folder) =>
-    selectedPaths.has(folder.path),
-  );
+
+  function changeView(nextView: ViewMode) {
+    setView(nextView);
+    persistViewMode(nextView);
+  }
 
   function toggleFolder(path: string) {
     setSelectedPaths((current) => {
@@ -128,17 +295,44 @@ export function FolderBrowser({
     });
   }
 
+  function toggleSubtree(paths: string[]) {
+    setSelectedPaths((current) => {
+      const next = new Set(current);
+      const allSelected = paths.every((path) => next.has(path));
+      for (const path of paths) {
+        if (allSelected) {
+          next.delete(path);
+        } else {
+          next.add(path);
+        }
+      }
+      return next;
+    });
+  }
+
   function toggleAllVisible() {
     setSelectedPaths((current) => {
       const next = new Set(current);
       if (allVisibleSelected) {
-        for (const folder of visibleFolders) {
-          next.delete(folder.path);
+        for (const path of visibleSelectablePaths) {
+          next.delete(path);
         }
       } else {
-        for (const folder of visibleFolders) {
-          next.add(folder.path);
+        for (const path of visibleSelectablePaths) {
+          next.add(path);
         }
+      }
+      return next;
+    });
+  }
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
       }
       return next;
     });
@@ -156,6 +350,8 @@ export function FolderBrowser({
     (total, folder) => total + folder.tracks.length,
     0,
   );
+  const visibleRowCount =
+    view === "flat" ? visibleFlatFolders.length : visibleTree.length;
 
   return (
     <section className="panel folders-panel" aria-labelledby="folders-heading">
@@ -181,19 +377,74 @@ export function FolderBrowser({
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <label className="sort-field">
-          <span>Sort</span>
-          <select
-            value={sort}
-            onChange={(event) => setSort(event.target.value as SortMode)}
+        <div className="folder-toolbar-right">
+          <div
+            className="view-toggle"
+            role="group"
+            aria-label="Folder view"
           >
-            <option value="size-desc">Largest first</option>
-            <option value="size-asc">Smallest first</option>
-            <option value="name">Folder name</option>
-            <option value="tracks">Track count</option>
-          </select>
-        </label>
+            <button
+              type="button"
+              className={view === "flat" ? "is-active" : ""}
+              aria-pressed={view === "flat"}
+              onClick={() => changeView("flat")}
+            >
+              Folders
+            </button>
+            <button
+              type="button"
+              className={view === "tree" ? "is-active" : ""}
+              aria-pressed={view === "tree"}
+              onClick={() => changeView("tree")}
+            >
+              Tree
+            </button>
+          </div>
+          <label className="sort-field">
+            <span>Sort</span>
+            <select
+              value={sort}
+              onChange={(event) =>
+                setSort(event.target.value as FolderSortMode)
+              }
+            >
+              <option value="size-desc">Largest first</option>
+              <option value="size-asc">Smallest first</option>
+              <option value="name">Folder name</option>
+              <option value="tracks">Track count</option>
+            </select>
+          </label>
+        </div>
       </div>
+
+      {view === "tree" ? (
+        <div className="tree-controls">
+          <span>
+            Row totals include nested folders. Select a row to queue its entire
+            subtree.
+          </span>
+          {!searchActive ? (
+            <div className="tree-actions">
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() =>
+                  setExpandedIds(new Set(collectFolderTreeIds(folderTree)))
+                }
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => setExpandedIds(new Set())}
+              >
+                Collapse all
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {selectedFolders.length > 0 ? (
         <div className="selection-bar">
@@ -255,57 +506,65 @@ export function FolderBrowser({
             </tr>
           </thead>
           <tbody>
-            {visibleFolders.map((folder) => {
-              const selected = selectedPaths.has(folder.path);
-              return (
-                <tr
-                  key={folder.path}
-                  className={selected ? "is-selected" : ""}
-                  onClick={() => toggleFolder(folder.path)}
-                >
-                  <td className="col-check">
-                    <SelectionCheckbox
-                      checked={selected}
+            {view === "flat"
+              ? visibleFlatFolders.map((folder) => {
+                  const selected = selectedPaths.has(folder.path);
+                  return (
+                    <FolderRow
+                      key={folder.path}
+                      label={folder.path}
+                      path={folder.path}
+                      tree={false}
+                      depth={0}
+                      trackCount={folder.tracks.length}
+                      size={folder.size}
+                      unknownSizeCount={folder.unknownSizeCount}
+                      trashedCount={folder.trashedCount}
+                      selected={selected}
                       indeterminate={false}
-                      onChange={() => toggleFolder(folder.path)}
-                      label={`Select ${folder.path}`}
+                      expandable={false}
+                      expanded={false}
+                      onSelect={() => toggleFolder(folder.path)}
+                      onToggleExpanded={() => undefined}
                     />
-                  </td>
-                  <td>
-                    <div className="folder-name">
-                      <span className="folder-icon">
-                        <FolderIcon size={17} />
-                      </span>
-                      <span title={folder.path}>{folder.path}</span>
-                    </div>
-                  </td>
-                  <td className="col-number">
-                    {folder.tracks.length.toLocaleString()}
-                  </td>
-                  <td className="col-number">
-                    <span className="size-value">{formatBytes(folder.size)}</span>
-                    {folder.unknownSizeCount > 0 ? (
-                      <span className="size-unknown">
-                        +{folder.unknownSizeCount.toLocaleString()} unknown
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="col-number col-trashed">
-                    {folder.trashedCount > 0 ? (
-                      <span className="trash-count-badge">
-                        {folder.trashedCount.toLocaleString()}
-                      </span>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+                  );
+                })
+              : visibleTree.map(({ node, depth }) => {
+                  const paths = nodeFolderPaths(node);
+                  let selectedCount = 0;
+                  for (const path of paths) {
+                    if (selectedPaths.has(path)) {
+                      selectedCount += 1;
+                    }
+                  }
+                  const selected =
+                    paths.length > 0 && selectedCount === paths.length;
+                  const indeterminate = selectedCount > 0 && !selected;
+                  const expandable = node.children.length > 0 && !searchActive;
+                  return (
+                    <FolderRow
+                      key={node.id}
+                      label={node.name}
+                      path={node.path}
+                      tree
+                      depth={depth}
+                      trackCount={node.trackCount}
+                      size={node.size}
+                      unknownSizeCount={node.unknownSizeCount}
+                      trashedCount={node.trashedCount}
+                      selected={selected}
+                      indeterminate={indeterminate}
+                      expandable={expandable}
+                      expanded={expandedIds.has(node.id) || searchActive}
+                      onSelect={() => toggleSubtree(paths)}
+                      onToggleExpanded={() => toggleExpanded(node.id)}
+                    />
+                  );
+                })}
           </tbody>
         </table>
 
-        {visibleFolders.length === 0 ? (
+        {visibleRowCount === 0 ? (
           <div className="empty-state">
             <FolderIcon size={28} />
             <p>
@@ -327,14 +586,15 @@ export function FolderBrowser({
       </div>
 
       <p className="folder-footnote">
-        Folders are derived from each track’s upload path. Move to trash works
-        first; storage is only reclaimed after you empty the trash.
+        {view === "tree"
+          ? "Tree view groups tracks by their upload path. Sizes, track counts, and trash counts include every nested folder."
+          : "Folders are derived from each track’s upload path. Move to trash works first; storage is only reclaimed after you empty the trash."}
       </p>
 
       <ConfirmDialog
         open={confirmOpen}
         title={`Move ${formatTrackCount(selectedTrackCount)} to trash?`}
-        description="This moves the selected folder contents to iBroadcast trash. It does not free storage, and the tracks remain restorable until the trash is emptied."
+        description="This moves every active track in the selected folder paths to iBroadcast trash. It does not free storage, and the tracks remain restorable until the trash is emptied."
         confirmLabel="Move to trash"
         busy={busy}
         onConfirm={() => void handleConfirm()}
