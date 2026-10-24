@@ -1868,3 +1868,81 @@ select:focus-visible {
     max-width: 560px;
   }
 }
+
+.view-toggle-elegant {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(4, 9, 16, 0.6);
+  gap: 2px;
+}
+
+.view-toggle-elegant button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.44rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.view-toggle-elegant button:hover:not(.is-active) {
+  color: var(--text);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.view-toggle-elegant button.is-active {
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.18), rgba(14, 165, 233, 0.14));
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.35);
+}
+
+.view-toggle-icon {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tree-chevron:hover {
+  color: var(--accent);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.tree-chevron svg {
+  transition: transform 0.15s ease;
+}
+
+.tree-chevron.is-expanded svg {
+  transform: rotate(90deg);
+}
+
+.tree-chevron-spacer {
+  width: 22px;
+  display: inline-block;
+}
+
+.folder-name.tree-label {
+  align-items: center;
+}

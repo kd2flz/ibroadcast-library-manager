@@ -163,7 +163,7 @@ function FolderRow({
                   onToggleExpanded();
                 }}
               >
-                <ChevronRightIcon size={15} />
+                <ChevronRightIcon size={12} />
               </button>
             ) : (
               <span className="tree-chevron-spacer" aria-hidden="true" />
@@ -208,7 +208,11 @@ export function FolderBrowser({
 }) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<FolderSortMode>("size-desc");
-  const [view, setView] = useState<ViewMode>(readViewMode);
+  const [view, setView] = useState<ViewMode>(() => {
+    const stored = readViewMode();
+    if (stored === "tree") return "tree";
+    return "tree";
+  });
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -379,24 +383,28 @@ export function FolderBrowser({
         </label>
         <div className="folder-toolbar-right">
           <div
-            className="view-toggle"
+            className="view-toggle view-toggle-elegant"
             role="group"
-            aria-label="Folder view"
+            aria-label="View mode: folders or upload tree"
           >
             <button
               type="button"
               className={view === "flat" ? "is-active" : ""}
               aria-pressed={view === "flat"}
+              title="Show folders as a flat list"
               onClick={() => changeView("flat")}
             >
-              Folders
+              <span className="view-toggle-icon">▦</span>
+              List
             </button>
             <button
               type="button"
               className={view === "tree" ? "is-active" : ""}
               aria-pressed={view === "tree"}
+              title="Show upload paths as a nested tree (bulk delete by branch)"
               onClick={() => changeView("tree")}
             >
+              <span className="view-toggle-icon">≡</span>
               Tree
             </button>
           </div>
