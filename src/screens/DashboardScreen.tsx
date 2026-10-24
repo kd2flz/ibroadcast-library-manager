@@ -91,9 +91,12 @@ export function DashboardScreen() {
         tone: "success",
         text: `Permanently deleted ${formatTrackCount(ids.length)} and reclaimed ${
           sizeKnown > 0 ? `about ${formatBytes(sizeKnown)}` : "storage"
-        }${unknown > 0 ? ` (plus ${unknown.toLocaleString()} tracks with unknown size)` : ""}.`,
+        }${unknown > 0 ? ` (plus ${unknown.toLocaleString()} tracks with unknown size)` : ""}. iBroadcast storage can take a few seconds to update.`,
       });
       await refresh();
+      window.setTimeout(() => void refresh(), 1500);
+      window.setTimeout(() => void refresh(), 4000);
+      window.setTimeout(() => void refresh(), 8000);
     } catch (caught) {
       setNotice({ tone: "error", text: messageForError(caught) });
     } finally {
