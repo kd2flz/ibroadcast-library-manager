@@ -69,6 +69,13 @@ export function StorageMeter({
       ? "is-near"
       : "";
 
+  const gap = library
+    ? Math.abs(usage.storageUsed - library.totalStoredSize)
+    : 0;
+  const gapThreshold = library
+    ? Math.max(50_000_000, usage.storageUsed * 0.02)
+    : 0;
+
   return (
     <section className="panel meter-panel" aria-labelledby="storage-heading">
       <div className="panel-heading">
@@ -133,11 +140,23 @@ export function StorageMeter({
           Computed from your library files: {formatBytes(library.totalStoredSize)}{" "}
           ({formatBytes(library.totalActiveSize)} active +{" "}
           {formatBytes(library.trash.size)} in trash).
-          {!usage.estimated &&
-          Math.abs(usage.storageUsed - library.totalStoredSize) >
-            Math.max(50_000_000, usage.storageUsed * 0.02)
-            ? " iBroadcast reports a different total, which may lag behind recent deletions or include files not listed here."
-            : ""}
+        </p>
+      ) : null}
+
+      {library && !usage.estimated && gap > gapThreshold ? (
+        <p className="meter-note meter-note-warning">
+          <strong>
+            iBroadcast’s usage figure ({formatBytes(usage.storageUsed)}) differs
+            from your library files ({formatBytes(library.totalStoredSize)}) by{" "}
+            {formatBytes(gap)}.
+          </strong>{" "}
+          {usage.storageUsed > library.totalStoredSize
+            ? `Once iBroadcast recalculates after deletions, expect usage to fall to about ${formatBytes(library.totalStoredSize + usage.hiddenFiles)}`
+            : "iBroadcast’s figure may be behind recent uploads."}
+          {usage.storageUsed > library.totalStoredSize ? ". " : " "}
+          The headline above is iBroadcast’s own number (the same one
+          media.ibroadcast.com shows), which your plan limit is checked
+          against, and it can lag behind deletions.
         </p>
       ) : null}
 

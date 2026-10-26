@@ -74,7 +74,8 @@ export interface DownloadResult {
 
 /**
  * Downloads the original files for the tracks and saves them as one or more
- * zip archives. Uses the Authorization header (never the URL) for the token.
+ * zip archives. The token is sent as the documented Signature URL parameter
+ * (the streaming host rejects CORS requests with an Authorization header).
  */
 export async function downloadTracksAsZip(
   tracks: Track[],
@@ -126,20 +127,27 @@ export async function downloadTracksAsZip(
     try {
       if (!track.file) throw new Error("No file path in library data.");
       const path = track.file.replace(/^\/?[^/]+/, "/orig");
+      // The streaming host does not allow an Authorization header in CORS
+      // requests, so iBroadcast's documented Signature parameter is required.
+      // The URL is only used for this fetch(): never rendered, logged, or sent
+      // as a referrer.
       const query = new URLSearchParams({
+        Expires: String(Date.now()),
+        Signature: token,
         file_id: track.id,
         user_id: userId,
         platform: "ibroadcast-library-manager",
         version: "1.0.0",
       });
       const response = await fetch(`${server}${path}?${query.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        referrerPolicy: "no-referrer",
+        credentials: "omit",
         signal,
       });
       if (!response.ok) {
         throw new Error(
           response.status === 401 || response.status === 403
-            ? "iBroadcast refused the download (not authorized)."
+            ? "iBroadcast refused the download (not authorized). The OAuth token may not be accepted as the streaming signature."
             : `Download failed (${response.status}).`,
         );
       }
@@ -151,10 +159,13 @@ export async function downloadTracksAsZip(
       partBytes += data.length;
     } catch (caught) {
       if (signal.aborted) break;
-      result.failed.push({
-        track,
-        reason: caught instanceof Error ? caught.message : "Download failed.",
-      });
+      const reason =
+        caught instanceof TypeError
+          ? "Could not reach the streaming server (network or CORS error)."
+          : caught instanceof Error
+            ? caught.message
+            : "Download failed.";
+      result.failed.push({ track, reason });
       // An authorization problem will affect every file; stop early.
       if (done === 0 && result.failed.length >= 3 && entries.length === 0) break;
     }

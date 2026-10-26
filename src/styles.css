@@ -1965,3 +1965,11 @@ select:focus-visible {
 .refresh-strip .button {
   margin-left: auto;
 }
+
+.meter-note-warning {
+  padding: 0.55rem 0.7rem;
+  color: #fde68a;
+  border: 1px solid rgba(251, 191, 36, 0.26);
+  border-radius: 9px;
+  background: rgba(180, 83, 9, 0.1);
+}

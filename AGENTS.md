@@ -37,7 +37,7 @@
 
 ## Grouping and downloads
 - The browser can group by Folder, Tag / Album, or Genre / Album (each with List or Tree view). Tag and genre groups are built as `Tag/Album` pseudo-folders (`buildAlbumGroups` in `src/lib/library.ts`) so selection and trash reuse the folder code. A track with several tags appears under each; selections de-duplicate track IDs.
-- Download builds store-only zip files client-side (`src/lib/zip.ts`, split near 1 GB) from `<streaming_server>/orig/...` (bitrate segment of `track.file` replaced with `orig`). `streaming_server` and `user.id` come from `mode: "status"`. The token is sent as an `Authorization` header, not in the URL. The official docs use a `Signature=` URL param; the header approach is UNVERIFIED against a live OAuth account, so check it first if downloads return 401.
+- Download builds store-only zip files client-side (`src/lib/zip.ts`, split near 1 GB) from `<streaming_server>/orig/...` (bitrate segment of `track.file` replaced with `orig`). `streaming_server` and `user.id` come from `mode: "status"`. The streaming host does NOT allow an `Authorization` header in CORS preflight (verified Oct 2026: `Access-Control-Allow-Headers: accept-encoding` only), so the access token is sent as the documented `Signature=` URL param on a `fetch()` with `referrerPolicy: "no-referrer"`. This is the one deliberate exception to "no tokens in URLs"; never render or log those URLs. Whether an OAuth access token is accepted as the Signature is UNVERIFIED; if downloads return 401, that is the likely cause.
 - Downloaded track IDs are stored in `localStorage` (`ibm.downloadedTracks`) and can be cleared per selection or entirely.
 
 ## Security constraints
