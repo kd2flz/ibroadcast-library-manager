@@ -16,6 +16,7 @@ import { TrashCard } from "../components/TrashCard";
 import { emptyTrash, trashTracks } from "../lib/api";
 import {
   downloadTracksAsZip,
+  type DownloadLayout,
   type DownloadProgress,
 } from "../lib/download";
 import { loadDownloaded, saveDownloaded } from "../lib/downloaded";
@@ -85,7 +86,10 @@ export function DashboardScreen() {
     }
   }
 
-  async function handleDownload(folders: FolderSummary[]): Promise<boolean> {
+  async function handleDownload(
+    folders: FolderSummary[],
+    layout: DownloadLayout,
+  ): Promise<boolean> {
     const byId = new Map<string, Track>();
     for (const folder of folders) {
       for (const track of folder.tracks) byId.set(track.id, track);
@@ -107,7 +111,14 @@ export function DashboardScreen() {
     setProgress({ done: 0, total: tracks.length, part: 1, message: "Starting…" });
     try {
       const result = await withAccessToken(clientId, (token) =>
-        downloadTracksAsZip(tracks, token, label, setProgress, controller.signal),
+        downloadTracksAsZip(
+          tracks,
+          token,
+          label,
+          layout,
+          setProgress,
+          controller.signal,
+        ),
       );
       if (result.downloadedIds.length > 0) {
         const next = new Set(downloaded);

@@ -1973,3 +1973,12 @@ select:focus-visible {
   border-radius: 9px;
   background: rgba(180, 83, 9, 0.1);
 }
+
+.layout-select {
+  padding: 0.45rem 0.55rem;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #0a1422;
+}

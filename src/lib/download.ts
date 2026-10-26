@@ -5,6 +5,8 @@ import { createZip, type ZipEntry } from "./zip";
 // Keep each archive modest: it is built in memory and uses 32-bit offsets.
 const MAX_PART_BYTES = 1_000_000_000;
 
+export type DownloadLayout = "album" | "artist-album" | "flat";
+
 export interface DownloadProgress {
   done: number;
   total: number;
@@ -42,11 +44,27 @@ function extensionFor(contentType: string | null, file: string): string {
   return match?.[1]?.toLowerCase() ?? "mp3";
 }
 
-function entryName(track: Track, ext: string, used: Set<string>): string {
+function entryName(
+  track: Track,
+  ext: string,
+  used: Set<string>,
+  layout: DownloadLayout,
+): string {
   const number = track.trackNumber
     ? `${String(track.trackNumber).padStart(2, "0")} - `
     : "";
-  const base = `${safeName(track.artist)}/${safeName(track.album)}/${number}${safeName(track.title)}`;
+  const artist = safeName(track.artist);
+  const title = safeName(track.title);
+  const album = safeName(track.album);
+  let base: string;
+  if (layout === "artist-album") {
+    base = `${artist}/${album}/${number}${title}`;
+  } else if (layout === "album") {
+    // Artist goes in the file name so compilations stay in one folder.
+    base = `${album}/${number}${artist} - ${title}`;
+  } else {
+    base = `${artist} - ${title}`;
+  }
   let name = `${base}.${ext}`;
   for (let n = 2; used.has(name); n += 1) {
     name = `${base} (${n}).${ext}`;
@@ -81,6 +99,7 @@ export async function downloadTracksAsZip(
   tracks: Track[],
   token: string,
   label: string,
+  layout: DownloadLayout,
   onProgress: (progress: DownloadProgress) => void,
   signal: AbortSignal,
 ): Promise<DownloadResult> {
@@ -154,7 +173,7 @@ export async function downloadTracksAsZip(
       const data = new Uint8Array(await response.arrayBuffer());
       if (partBytes > 0 && partBytes + data.length > MAX_PART_BYTES) flush();
       const ext = extensionFor(response.headers.get("content-type"), track.file);
-      entries.push({ name: entryName(track, ext, used), data });
+      entries.push({ name: entryName(track, ext, used, layout), data });
       entryIds.push(track.id);
       partBytes += data.length;
     } catch (caught) {

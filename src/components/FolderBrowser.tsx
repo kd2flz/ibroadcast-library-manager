@@ -14,6 +14,7 @@ import {
   sortFolderTree,
   type FolderSortMode,
 } from "../lib/folder-tree";
+import type { DownloadLayout } from "../lib/download";
 import type { FolderSummary } from "../lib/types";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -250,7 +251,10 @@ export function FolderBrowser({
   genreFolders: FolderSummary[];
   busy: boolean;
   onTrash: (folders: FolderSummary[]) => Promise<boolean>;
-  onDownload: (folders: FolderSummary[]) => Promise<boolean>;
+  onDownload: (
+    folders: FolderSummary[],
+    layout: DownloadLayout,
+  ) => Promise<boolean>;
   downloadedIds: Set<string>;
   onClearDownloaded: (folders: FolderSummary[] | null) => void;
 }) {
@@ -261,6 +265,14 @@ export function FolderBrowser({
       : groupMode === "genre"
         ? genreFolders
         : folderGroups;
+  const [layout, setLayout] = useState<DownloadLayout>(() => {
+    try {
+      const stored = localStorage.getItem("ibm.downloadLayout");
+      return stored === "artist-album" || stored === "flat" ? stored : "album";
+    } catch {
+      return "album";
+    }
+  });
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<FolderSortMode>("size-desc");
   const [view, setView] = useState<ViewMode>(() => {
@@ -402,7 +414,7 @@ export function FolderBrowser({
   }
 
   async function handleDownload() {
-    const success = await onDownload(selectedFolders);
+    const success = await onDownload(selectedFolders, layout);
     if (success) {
       setSelectedPaths(new Set());
     }
@@ -559,6 +571,24 @@ export function FolderBrowser({
             >
               Clear
             </button>
+            <select
+              className="layout-select"
+              aria-label="Zip folder layout"
+              value={layout}
+              onChange={(event) => {
+                const next = event.target.value as DownloadLayout;
+                setLayout(next);
+                try {
+                  localStorage.setItem("ibm.downloadLayout", next);
+                } catch {
+                  // Preference is optional.
+                }
+              }}
+            >
+              <option value="album">Zip: Album / Track</option>
+              <option value="artist-album">Zip: Artist / Album / Track</option>
+              <option value="flat">Zip: No folders</option>
+            </select>
             <button
               type="button"
               className="button button-secondary button-small"
