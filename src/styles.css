@@ -1330,7 +1330,7 @@ select:focus-visible {
 
 .folder-table {
   width: 100%;
-  min-width: 640px;
+  min-width: 720px;
   border-collapse: collapse;
   font-size: 0.86rem;
 }
@@ -1945,4 +1945,23 @@ select:focus-visible {
 
 .folder-name.tree-label {
   align-items: center;
+}
+
+.downloaded-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  color: var(--muted-strong);
+  font-size: 0.7rem;
+  font-weight: 650;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.downloaded-badge.is-complete {
+  color: #a7f3d0;
+  background: rgba(52, 211, 153, 0.14);
+}
+
+.refresh-strip .button {
+  margin-left: auto;
 }

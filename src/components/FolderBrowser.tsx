@@ -21,6 +21,7 @@ import {
   FolderIcon,
   SearchIcon,
   TrashIcon,
+  DownloadIcon,
 } from "./Icons";
 
 type ViewMode = "flat" | "tree";
@@ -109,6 +110,7 @@ function FolderRow({
   size,
   unknownSizeCount,
   trashedCount,
+  downloaded,
   selected,
   indeterminate,
   expandable,
@@ -124,6 +126,7 @@ function FolderRow({
   size: number;
   unknownSizeCount: number;
   trashedCount: number;
+  downloaded: { done: number; total: number };
   selected: boolean;
   indeterminate: boolean;
   expandable: boolean;
@@ -184,6 +187,23 @@ function FolderRow({
           </span>
         ) : null}
       </td>
+      <td className="col-number col-downloaded">
+        {downloaded.done > 0 ? (
+          <span
+            className={
+              downloaded.done === downloaded.total
+                ? "downloaded-badge is-complete"
+                : "downloaded-badge"
+            }
+          >
+            {downloaded.done === downloaded.total
+              ? "Downloaded"
+              : `${downloaded.done.toLocaleString()}/${downloaded.total.toLocaleString()}`}
+          </span>
+        ) : (
+          <span className="muted">—</span>
+        )}
+      </td>
       <td className="col-number col-trashed">
         {trashedCount > 0 ? (
           <span className="trash-count-badge">
@@ -197,15 +217,50 @@ function FolderRow({
   );
 }
 
+type GroupMode = "folder" | "tag" | "genre";
+
+function downloadedCount(
+  folders: FolderSummary[],
+  ids: Set<string>,
+): { done: number; total: number } {
+  const seen = new Set<string>();
+  let done = 0;
+  for (const folder of folders) {
+    for (const track of folder.tracks) {
+      if (seen.has(track.id)) continue;
+      seen.add(track.id);
+      if (ids.has(track.id)) done += 1;
+    }
+  }
+  return { done, total: seen.size };
+}
+
 export function FolderBrowser({
-  folders,
+  folders: folderGroups,
+  tagFolders,
+  genreFolders,
   busy,
   onTrash,
+  onDownload,
+  downloadedIds,
+  onClearDownloaded,
 }: {
   folders: FolderSummary[];
+  tagFolders: FolderSummary[];
+  genreFolders: FolderSummary[];
   busy: boolean;
   onTrash: (folders: FolderSummary[]) => Promise<boolean>;
+  onDownload: (folders: FolderSummary[]) => Promise<boolean>;
+  downloadedIds: Set<string>;
+  onClearDownloaded: (folders: FolderSummary[] | null) => void;
 }) {
+  const [groupMode, setGroupMode] = useState<GroupMode>("folder");
+  const folders =
+    groupMode === "tag"
+      ? tagFolders
+      : groupMode === "genre"
+        ? genreFolders
+        : folderGroups;
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<FolderSortMode>("size-desc");
   const [view, setView] = useState<ViewMode>(() => {
@@ -269,18 +324,22 @@ export function FolderBrowser({
     selectedPaths.has(path),
   );
 
-  const selectedTrackCount = selectedFolders.reduce(
-    (total, folder) => total + folder.tracks.length,
-    0,
-  );
-  const selectedSize = selectedFolders.reduce(
-    (total, folder) => total + folder.size,
-    0,
-  );
-  const selectedUnknownCount = selectedFolders.reduce(
-    (total, folder) => total + folder.unknownSizeCount,
-    0,
-  );
+  const selectedUnique = useMemo(() => {
+    const seen = new Map<string, number | null>();
+    for (const folder of selectedFolders) {
+      for (const track of folder.tracks) seen.set(track.id, track.size);
+    }
+    let size = 0;
+    let unknown = 0;
+    for (const value of seen.values()) {
+      if (value === null) unknown += 1;
+      else size += value;
+    }
+    return { count: seen.size, size, unknown };
+  }, [selectedFolders]);
+  const selectedTrackCount = selectedUnique.count;
+  const selectedSize = selectedUnique.size;
+  const selectedUnknownCount = selectedUnique.unknown;
 
   function changeView(nextView: ViewMode) {
     setView(nextView);
@@ -342,6 +401,13 @@ export function FolderBrowser({
     });
   }
 
+  async function handleDownload() {
+    const success = await onDownload(selectedFolders);
+    if (success) {
+      setSelectedPaths(new Set());
+    }
+  }
+
   async function handleConfirm() {
     const success = await onTrash(selectedFolders);
     setConfirmOpen(false);
@@ -362,7 +428,9 @@ export function FolderBrowser({
       <div className="panel-heading folders-heading">
         <div>
           <p className="eyebrow">Upload folders</p>
-          <h2 id="folders-heading">Browse by folder</h2>
+          <h2 id="folders-heading">
+            {groupMode === "folder" ? "Browse by folder" : groupMode === "tag" ? "Browse by tag" : "Browse by genre"}
+          </h2>
           <p className="panel-subtitle">
             {formatFolderCount(folders.length)} · {formatTrackCount(totalTracks)}{" "}
             · sorted by size by default
@@ -408,6 +476,21 @@ export function FolderBrowser({
               Tree
             </button>
           </div>
+          <label className="sort-field">
+            <span>Group by</span>
+            <select
+              value={groupMode}
+              onChange={(event) => {
+                setGroupMode(event.target.value as GroupMode);
+                setSelectedPaths(new Set());
+                setExpandedIds(new Set());
+              }}
+            >
+              <option value="folder">Folder</option>
+              <option value="tag">Tag / Album</option>
+              <option value="genre">Genre / Album</option>
+            </select>
+          </label>
           <label className="sort-field">
             <span>Sort</span>
             <select
@@ -478,6 +561,16 @@ export function FolderBrowser({
             </button>
             <button
               type="button"
+              className="button button-secondary button-small"
+              onClick={() => void handleDownload()}
+              disabled={busy}
+              title="Download the original files as a zip"
+            >
+              <DownloadIcon size={15} />
+              Download
+            </button>
+            <button
+              type="button"
               className="button button-primary button-small"
               onClick={() => setConfirmOpen(true)}
               disabled={busy}
@@ -508,6 +601,9 @@ export function FolderBrowser({
               <th className="col-number" scope="col">
                 Size
               </th>
+              <th className="col-number col-downloaded" scope="col">
+                Downloaded
+              </th>
               <th className="col-number col-trashed" scope="col">
                 In trash
               </th>
@@ -528,6 +624,7 @@ export function FolderBrowser({
                       size={folder.size}
                       unknownSizeCount={folder.unknownSizeCount}
                       trashedCount={folder.trashedCount}
+                      downloaded={downloadedCount([folder], downloadedIds)}
                       selected={selected}
                       indeterminate={false}
                       expandable={false}
@@ -560,6 +657,7 @@ export function FolderBrowser({
                       size={node.size}
                       unknownSizeCount={node.unknownSizeCount}
                       trashedCount={node.trashedCount}
+                      downloaded={downloadedCount(node.subtreeFolders, downloadedIds)}
                       selected={selected}
                       indeterminate={indeterminate}
                       expandable={expandable}
@@ -593,6 +691,28 @@ export function FolderBrowser({
         ) : null}
       </div>
 
+      {downloadedIds.size > 0 ? (
+        <p className="folder-footnote">
+          {downloadedIds.size.toLocaleString()} tracks marked as downloaded on
+          this device.{" "}
+          {selectedFolders.length > 0 ? (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => onClearDownloaded(selectedFolders)}
+            >
+              Clear for selection
+            </button>
+          ) : null}{" "}
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => onClearDownloaded(null)}
+          >
+            Clear all
+          </button>
+        </p>
+      ) : null}
       <p className="folder-footnote">
         {view === "tree"
           ? "Tree view groups tracks by their upload path. Sizes, track counts, and trash counts include every nested folder."

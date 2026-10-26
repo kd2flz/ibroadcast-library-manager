@@ -84,6 +84,16 @@ export function TrashIcon(props: IconProps) {
   );
 }
 
+export function DownloadIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 4v11" />
+      <path d="m7.5 11 4.5 4.5 4.5-4.5" />
+      <path d="M5 19.5h14" />
+    </IconBase>
+  );
+}
+
 export function RefreshIcon(props: IconProps) {
   return (
     <IconBase {...props}>

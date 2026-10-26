@@ -156,6 +156,50 @@ function buildFolders(tracks: Track[]): FolderSummary[] {
   });
 }
 
+function groupLabel(value: string): string {
+  return value.replace(/[\\/]+/g, "-").trim() || "Unknown";
+}
+
+/**
+ * Groups active tracks as "<group>/<album>" pseudo-folders so the existing
+ * list and tree views work unchanged. A track with several tags appears under
+ * each tag; track IDs are de-duplicated when acting on a selection.
+ */
+export function buildAlbumGroups(
+  tracks: Track[],
+  groupsOf: (track: Track) => string[],
+): FolderSummary[] {
+  const groups = new Map<string, { active: Track[]; trashedCount: number }>();
+  for (const track of tracks) {
+    for (const group of groupsOf(track)) {
+      const path = `${groupLabel(group)}/${groupLabel(track.album)}`;
+      let entry = groups.get(path);
+      if (!entry) {
+        entry = { active: [], trashedCount: 0 };
+        groups.set(path, entry);
+      }
+      if (track.trashed) {
+        entry.trashedCount += 1;
+      } else {
+        entry.active.push(track);
+      }
+    }
+  }
+  const result: FolderSummary[] = [];
+  for (const [path, entry] of groups) {
+    if (entry.active.length === 0) continue;
+    const { size, unknownSizeCount } = sizeOfTracks(entry.active);
+    result.push({
+      path,
+      tracks: entry.active,
+      size,
+      unknownSizeCount,
+      trashedCount: entry.trashedCount,
+    });
+  }
+  return result.sort((x, y) => y.size - x.size || x.path.localeCompare(y.path));
+}
+
 function buildTrashSummary(
   ids: string[],
   tracksById: Record<string, Track>,
@@ -202,9 +246,28 @@ export function parseLibrary(raw: RawLibrary): LibraryData {
     albumNames.set(album.id, asText(album.name) ?? "Unknown album");
   }
 
+  const trackTags = new Map<string, string[]>();
+  if (raw.tags && typeof raw.tags === "object") {
+    for (const tagValue of Object.values(raw.tags)) {
+      const tagObj = asRecord(tagValue);
+      if (!tagObj) continue;
+      const tagName = asText(tagObj.name);
+      if (!tagName) continue;
+      const trackIds = Array.isArray(tagObj.tracks) ? tagObj.tracks : [];
+      for (const tid of trackIds) {
+        const id = asId(tid);
+        if (!id) continue;
+        const existing = trackTags.get(id) ?? [];
+        existing.push(tagName);
+        trackTags.set(id, existing);
+      }
+    }
+  }
+
   const tracks: Track[] = decodeCollection(raw.tracks).map((item) => {
     const artistId = asId(item.artist_id);
     const albumId = asId(item.album_id);
+    const genre = asText(item.genre);
     return {
       id: item.id,
       title: asText(item.title) ?? "Untitled track",
@@ -221,6 +284,9 @@ export function parseLibrary(raw: RawLibrary): LibraryData {
       trackNumber: asNumber(item.track),
       year: asNumber(item.year),
       length: asNumber(item.length),
+      file: asText(item.file),
+      genre: genre && genre !== "Unknown" ? genre : null,
+      tags: trackTags.get(item.id) ?? [],
     };
   });
 
@@ -257,6 +323,12 @@ export function parseLibrary(raw: RawLibrary): LibraryData {
     activeTracks,
     tracksById,
     folders: buildFolders(tracks),
+    tagFolders: buildAlbumGroups(tracks, (track) =>
+      track.tags.length > 0 ? track.tags : ["Untagged"],
+    ),
+    genreFolders: buildAlbumGroups(tracks, (track) => [
+      track.genre ?? "No genre",
+    ]),
     trash,
     totalActiveSize,
     totalActiveUnknownSizeCount,

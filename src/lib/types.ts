@@ -57,6 +57,9 @@ export interface Track {
   trackNumber: number | null;
   year: number | null;
   length: number | null;
+  genre: string | null;
+  file: string | null;
+  tags: string[];
 }
 
 export interface FolderSummary {
@@ -79,6 +82,8 @@ export interface LibraryData {
   activeTracks: Track[];
   tracksById: Record<string, Track>;
   folders: FolderSummary[];
+  tagFolders: FolderSummary[];
+  genreFolders: FolderSummary[];
   trash: TrashSummary;
   totalActiveSize: number;
   totalActiveUnknownSizeCount: number;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "../auth/auth-context";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { FolderBrowser } from "../components/FolderBrowser";
@@ -14,10 +14,15 @@ import { Notice, type NoticeTone } from "../components/Notice";
 import { StorageMeter } from "../components/StorageMeter";
 import { TrashCard } from "../components/TrashCard";
 import { emptyTrash, trashTracks } from "../lib/api";
+import {
+  downloadTracksAsZip,
+  type DownloadProgress,
+} from "../lib/download";
+import { loadDownloaded, saveDownloaded } from "../lib/downloaded";
 import { formatBytes, formatTrackCount } from "../lib/format";
 import { collectFolderTrackIds } from "../lib/library";
 import { withAccessToken } from "../lib/token-store";
-import type { FolderSummary } from "../lib/types";
+import type { FolderSummary, Track } from "../lib/types";
 import { estimatedUsage } from "../lib/usage";
 
 interface LocalNotice {
@@ -44,7 +49,12 @@ export function DashboardScreen() {
     logout,
     clearError,
   } = useAuth();
-  const [operation, setOperation] = useState<"trash" | "empty" | null>(null);
+  const [operation, setOperation] = useState<"trash" | "empty" | "download" | null>(
+    null,
+  );
+  const [downloaded, setDownloaded] = useState<Set<string>>(loadDownloaded);
+  const [progress, setProgress] = useState<DownloadProgress | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [notice, setNotice] = useState<LocalNotice | null>(null);
   const [emptyConfirmOpen, setEmptyConfirmOpen] = useState(false);
 
@@ -73,6 +83,72 @@ export function DashboardScreen() {
     } finally {
       setOperation(null);
     }
+  }
+
+  async function handleDownload(folders: FolderSummary[]): Promise<boolean> {
+    const byId = new Map<string, Track>();
+    for (const folder of folders) {
+      for (const track of folder.tracks) byId.set(track.id, track);
+    }
+    const tracks = [...byId.values()];
+    if (tracks.length === 0) {
+      setNotice({ tone: "warning", text: "Nothing to download." });
+      return false;
+    }
+    const label =
+      folders.length === 1
+        ? folders[0]!.path.split("/").filter(Boolean).pop() ?? "tracks"
+        : "ibroadcast-tracks";
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setOperation("download");
+    setNotice(null);
+    setProgress({ done: 0, total: tracks.length, part: 1, message: "Starting…" });
+    try {
+      const result = await withAccessToken(clientId, (token) =>
+        downloadTracksAsZip(tracks, token, label, setProgress, controller.signal),
+      );
+      if (result.downloadedIds.length > 0) {
+        const next = new Set(downloaded);
+        for (const id of result.downloadedIds) next.add(id);
+        setDownloaded(next);
+        saveDownloaded(next);
+      }
+      const failed = result.failed.length;
+      setNotice({
+        tone: failed > 0 || controller.signal.aborted ? "warning" : "success",
+        text: `Saved ${formatTrackCount(result.downloadedIds.length)} in ${result.parts} zip ${result.parts === 1 ? "file" : "files"}.${
+          controller.signal.aborted ? " Download cancelled." : ""
+        }${
+          failed > 0
+            ? ` ${failed.toLocaleString()} failed: ${result.failed[0]!.reason}`
+            : ""
+        }`,
+      });
+      return failed === 0 && !controller.signal.aborted;
+    } catch (caught) {
+      setNotice({ tone: "error", text: messageForError(caught) });
+      return false;
+    } finally {
+      abortRef.current = null;
+      setProgress(null);
+      setOperation(null);
+    }
+  }
+
+  function handleClearDownloaded(folders: FolderSummary[] | null) {
+    if (folders === null) {
+      setDownloaded(new Set());
+      saveDownloaded(new Set());
+      return;
+    }
+    const next = new Set(downloaded);
+    for (const folder of folders) {
+      for (const track of folder.tracks) next.delete(track.id);
+    }
+    setDownloaded(next);
+    saveDownloaded(next);
   }
 
   async function handleEmptyTrash() {
@@ -232,6 +308,21 @@ export function DashboardScreen() {
             {notice.text}
           </Notice>
         ) : null}
+        {progress ? (
+          <div className="refresh-strip" role="status">
+            <span className="spinner spinner-small" />
+            Downloading {progress.done.toLocaleString()} of{" "}
+            {progress.total.toLocaleString()} (zip part {progress.part}):{" "}
+            {progress.message}
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={() => abortRef.current?.abort()}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : null}
         {busyMessage && library ? (
           <div className="refresh-strip" role="status">
             <span className="spinner spinner-small" />
@@ -250,8 +341,13 @@ export function DashboardScreen() {
 
         <FolderBrowser
           folders={library.folders}
+          tagFolders={library.tagFolders}
+          genreFolders={library.genreFolders}
           busy={working}
           onTrash={handleTrash}
+          onDownload={handleDownload}
+          downloadedIds={downloaded}
+          onClearDownloaded={handleClearDownloaded}
         />
 
         <footer className="dashboard-footer">

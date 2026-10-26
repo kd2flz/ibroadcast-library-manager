@@ -15,7 +15,7 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://oauth.ibroadcast.com https://api.ibroadcast.com https://library.ibroadcast.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://oauth.ibroadcast.com; object-src 'none'; manifest-src 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://oauth.ibroadcast.com https://api.ibroadcast.com https://library.ibroadcast.com https://streaming.ibroadcast.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://oauth.ibroadcast.com; object-src 'none'; manifest-src 'self'"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"

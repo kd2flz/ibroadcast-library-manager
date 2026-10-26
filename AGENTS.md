@@ -3,7 +3,7 @@
 ## Project
 - Build a secure browser app for iBroadcast users to browse uploads by folder, sort folders by size, bulk move tracks to trash, and permanently empty trash to reclaim storage. It must run on a free Netlify static-hosting tier.
 - The main dashboard must prominently show current storage used vs. the account limit. This is a primary product feature, not a settings-page detail.
-- This repo starts empty. No package, build, lint, or test commands exist yet. Confirm the stack before scaffolding, then add the real commands to this file; do not invent them.
+- Stack: Vite + React 19 + TypeScript. Commands: `npm run dev`, `npm run build` (tsc + vite), `npm run lint`, `npm test` (vitest).
 
 ## iBroadcast integration (verified against official docs + live CORS check, Oct 2026)
 - Auth is OAuth 2.0 only. There is no username/password API. Do not collect, forward, or store iBroadcast passwords. Use Authorization Code + PKCE (public client) or the Device Code flow.
@@ -34,6 +34,11 @@
 - Trust the API-reported `storage_limit`. Product limits are 5 GB for free and 25 GB for Basic Premium; higher tiers can be unlimited. Public marketing/docs currently still say "unlimited storage" (checked Oct 2026), so fall back to those tier limits only when `storage_limit` is absent, and show "Unlimited" when the API says so.
 - Make the meter the most prominent dashboard element: used, limit, remaining, and percent, with a clear near-limit and over-limit state (text plus color, not color alone). Format with 1 GB = 10^9 bytes to match iBroadcast's own UI.
 - Also show the reclaimable trash size (sum `size` for the IDs in `library.trash[0][library.trash.map.tracks]`) next to the meter, with the "Empty trash" action. `size` can be missing/null for unavailable files; treat that as unknown, not zero-heavy data loss.
+
+## Grouping and downloads
+- The browser can group by Folder, Tag / Album, or Genre / Album (each with List or Tree view). Tag and genre groups are built as `Tag/Album` pseudo-folders (`buildAlbumGroups` in `src/lib/library.ts`) so selection and trash reuse the folder code. A track with several tags appears under each; selections de-duplicate track IDs.
+- Download builds store-only zip files client-side (`src/lib/zip.ts`, split near 1 GB) from `<streaming_server>/orig/...` (bitrate segment of `track.file` replaced with `orig`). `streaming_server` and `user.id` come from `mode: "status"`. The token is sent as an `Authorization` header, not in the URL. The official docs use a `Signature=` URL param; the header approach is UNVERIFIED against a live OAuth account, so check it first if downloads return 401.
+- Downloaded track IDs are stored in `localStorage` (`ibm.downloadedTracks`) and can be cleared per selection or entirely.
 
 ## Security constraints
 - Never add password fields. Keep the access token in memory; if persistence is required, use `sessionStorage` and call `/revoke` on logout. Never log tokens or full library payloads, and never place tokens in URLs.
